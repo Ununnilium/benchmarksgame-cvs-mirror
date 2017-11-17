@@ -1,0 +1,144 @@
+# The Computer Language Benchmarks Game
+# http://benchmarksgame.alioth.debian.org/
+#
+# contributed by Fabian Heller
+# this version uses type hints for better performance
+
+type Body
+    x::Float64
+    y::Float64
+    z::Float64
+    vx::Float64
+    vy::Float64
+    vz::Float64
+    mass::Float64
+end
+
+SOLAR_MASS = 4.0*pi*pi
+DAYS_PER_YEAR = 365.24
+
+function get_bodies()
+    ret::Array{Body}
+    ret = [
+        # sun
+        Body(0.,0.,0., 0.,0.,0., SOLAR_MASS),
+
+        # jupiter
+        Body(4.84143144246472090e+00, -1.16032004402742839e+00, -1.03622044471123109e-01,
+
+            1.66007664274403694e-03 * DAYS_PER_YEAR, 7.69901118419740425e-03 * DAYS_PER_YEAR,
+            -6.90460016972063023e-05 * DAYS_PER_YEAR,
+
+            9.54791938424326609e-04 * SOLAR_MASS
+            ),
+        
+        # saturn
+        Body(8.34336671824457987e+00, 4.12479856412430479e+00, -4.03523417114321381e-01,
+
+            -2.76742510726862411e-03 * DAYS_PER_YEAR, 4.99852801234917238e-03 * DAYS_PER_YEAR, 
+            2.30417297573763929e-05 * DAYS_PER_YEAR,
+
+            2.85885980666130812e-04 * SOLAR_MASS
+            ),
+
+        # uranus
+        Body(1.28943695621391310e+01, -1.51111514016986312e+01, -2.23307578892655734e-01,
+
+            2.96460137564761618e-03 * DAYS_PER_YEAR, 2.37847173959480950e-03 * DAYS_PER_YEAR,
+            -2.96589568540237556e-05 * DAYS_PER_YEAR,
+
+            4.36624404335156298e-05 * SOLAR_MASS
+            ),
+
+        # neptune
+        Body(1.53796971148509165e+01, -2.59193146099879641e+01, 1.79258772950371181e-01,
+
+            2.68067772490389322e-03 * DAYS_PER_YEAR, 1.62824170038242295e-03 * DAYS_PER_YEAR,
+            -9.51592254519715870e-05 * DAYS_PER_YEAR,
+
+            5.15138902046611451e-05 * SOLAR_MASS
+            ),
+    ]
+    return ret
+end
+
+function init_nbody_system()
+    bodies::Array{Body}
+    bodies = get_bodies()
+    px = 0.0
+    py = 0.0
+    pz = 0.0
+    for body in bodies
+        px += body.vx * body.mass
+        py += body.vy * body.mass
+        pz += body.vz * body.mass
+    end
+    body_offset_momentum(bodies[1], px, py, pz)
+    return bodies
+end
+
+function body_offset_momentum(body::Body, px::Float64, py::Float64, pz::Float64)
+    body.vx = -px / SOLAR_MASS
+    body.vy = -py / SOLAR_MASS
+    body.vz = -pz / SOLAR_MASS
+end
+
+function bodies_advance(bodies::Array{Body}, dt::Float64)
+    for i in 1:length(bodies)
+        ibody = bodies[i]
+        for j in i+1:length(bodies)
+            dx = ibody.x - bodies[j].x
+            dy = ibody.y - bodies[j].y
+            dz = ibody.z - bodies[j].z
+
+            d_squared = dx * dx + dy * dy + dz * dz
+            distance = sqrt(d_squared)
+            mag = dt / (d_squared * distance)
+
+            ibody.vx -= dx * bodies[j].mass * mag
+            ibody.vy -= dy * bodies[j].mass * mag
+            ibody.vz -= dz * bodies[j].mass * mag
+
+            bodies[j].vx += dx * ibody.mass * mag
+            bodies[j].vy += dy * ibody.mass * mag
+            bodies[j].vz += dz * ibody.mass * mag
+        end
+    end
+    for body in bodies
+        body.x += dt * body.vx
+        body.y += dt * body.vy
+        body.z += dt * body.vz
+    end
+end
+
+function bodies_energy(bodies::Array{Body})
+    e = 0.0
+    for i in 1:length(bodies)
+        ibody = bodies[i]
+        e += 0.5 * ibody.mass *
+        ( ibody.vx * ibody.vx
+            + ibody.vy * ibody.vy
+            + ibody.vz * ibody.vz)
+        for j in i+1:length(bodies)
+            jbody = bodies[j]
+            dx = ibody.x - jbody.x
+            dy = ibody.y - jbody.y
+            dz = ibody.z - jbody.z
+            distance = sqrt(dx*dx + dy*dy + dz*dz)
+            e -= (ibody.mass * jbody.mass) / distance
+        end
+    end
+    return e
+end
+
+function main()
+    n = parse(Int, ARGS[1])
+    bodies = init_nbody_system()
+    @printf "%.9f\n" bodies_energy(bodies)
+    for i in 1:n
+        bodies_advance(bodies, 0.01)
+    end
+    @printf "%.9f\n" bodies_energy(bodies)
+end
+
+main()
